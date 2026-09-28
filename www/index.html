@@ -1,0 +1,1180 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Control de Gastos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.3/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #EFF2EF;
+    --bg-elevated: #FFFFFF;
+    --ink: #1C2B2A;
+    --ink-soft: #5C6B69;
+    --line: #D8DED9;
+    --accent-good: #3E6B4F;
+    --accent-good-soft: #E4EEE7;
+    --accent-over: #A24C36;
+    --accent-over-soft: #F5E5DF;
+    --focus: #2E5C6E;
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  :root:not([data-theme="light"]) {
+    @media (prefers-color-scheme: dark) {
+      --bg: #121917;
+      --bg-elevated: #1A2422;
+      --ink: #E9EEEC;
+      --ink-soft: #93A29E;
+      --line: #2B3735;
+      --accent-good: #6FA786;
+      --accent-good-soft: #1E332A;
+      --accent-over: #D08468;
+      --accent-over-soft: #35241E;
+      --focus: #7FB4C9;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #121917;
+    --bg-elevated: #1A2422;
+    --ink: #E9EEEC;
+    --ink-soft: #93A29E;
+    --line: #2B3735;
+    --accent-good: #6FA786;
+    --accent-good-soft: #1E332A;
+    --accent-over: #D08468;
+    --accent-over-soft: #35241E;
+    --focus: #7FB4C9;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Inter', -apple-system, sans-serif;
+    line-height: 1.5;
+    transition: background 0.2s ease, color 0.2s ease;
+  }
+  .wrap {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 28px 20px 80px;
+  }
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 28px;
+  }
+  .brand {
+    font-family: 'Fraunces', serif;
+    font-size: 1.3rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .theme-toggle {
+    display: flex;
+    gap: 4px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 3px;
+  }
+  .theme-toggle button {
+    border: none;
+    background: transparent;
+    color: var(--ink-soft);
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-family: inherit;
+    cursor: pointer;
+  }
+  .theme-toggle button.active {
+    background: var(--accent-good-soft);
+    color: var(--accent-good);
+    font-weight: 600;
+  }
+
+  .month-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  .month-nav {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .month-nav button {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    border: 1px solid var(--line);
+    background: var(--bg-elevated);
+    color: var(--ink);
+    font-size: 1rem;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .month-label {
+    font-family: 'Fraunces', serif;
+    font-size: 1.05rem;
+    text-transform: capitalize;
+    min-width: 150px;
+    text-align: center;
+  }
+
+  .hero-card {
+    background: var(--bg-elevated);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 24px 24px 20px;
+    margin-bottom: 20px;
+  }
+  .hero-label {
+    color: var(--ink-soft);
+    font-size: 0.9rem;
+    margin-bottom: 6px;
+  }
+  .hero-amount {
+    font-family: 'Fraunces', serif;
+    font-size: 2.6rem;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+  }
+  .hero-amount.over { color: var(--accent-over); }
+  .hero-amount.good { color: var(--accent-good); }
+  .hero-sub {
+    display: flex;
+    gap: 20px;
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--line);
+    font-size: 0.9rem;
+    flex-wrap: wrap;
+  }
+  .hero-sub-item span { display: block; }
+  .hero-sub-item .k { color: var(--ink-soft); font-size: 0.8rem; }
+  .hero-sub-item .v { font-family: 'IBM Plex Mono', monospace; font-size: 0.95rem; font-variant-numeric: tabular-nums; }
+
+  .initial-edit {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .initial-edit input {
+    flex: 1;
+  }
+  .link-btn {
+    background: none;
+    border: none;
+    color: var(--focus);
+    font-size: 0.85rem;
+    cursor: pointer;
+    padding: 0;
+    font-family: inherit;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .section {
+    margin-bottom: 24px;
+  }
+  .section-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .section-title {
+    font-family: 'Fraunces', serif;
+    font-size: 1.05rem;
+  }
+
+  .card {
+    background: var(--bg-elevated);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 18px;
+  }
+
+  button.primary {
+    width: 100%;
+    background: var(--ink);
+    color: var(--bg);
+    border: none;
+    border-radius: 10px;
+    padding: 14px;
+    font-size: 1rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+  }
+  :root[data-theme="dark"] button.primary,
+  @media (prefers-color-scheme: dark) { }
+  button.secondary {
+    background: transparent;
+    border: 1px solid var(--line);
+    color: var(--ink);
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-family: inherit;
+    cursor: pointer;
+    font-size: 0.9rem;
+  }
+
+  input, select {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 11px 12px;
+    color: var(--ink);
+    font-family: inherit;
+    font-size: 0.95rem;
+  }
+  input:focus, select:focus, button:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 1px;
+  }
+  label {
+    display: block;
+    font-size: 0.82rem;
+    color: var(--ink-soft);
+    margin-bottom: 5px;
+    margin-top: 12px;
+  }
+  label:first-child { margin-top: 0; }
+
+  .cat-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .cat-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    padding: 6px 6px 6px 14px;
+    font-size: 0.85rem;
+  }
+  .cat-pill button {
+    background: none;
+    border: none;
+    color: var(--ink-soft);
+    cursor: pointer;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    font-size: 0.85rem;
+    line-height: 1;
+    padding: 0;
+  }
+  .cat-pill button:hover { background: var(--line); color: var(--ink); }
+  .cat-add-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .cat-add-row input { flex: 1; }
+
+  .chart-wrap {
+    position: relative;
+    height: 220px;
+  }
+
+  .expense-list { list-style: none; margin: 0; padding: 0; }
+  .expense-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--line);
+    gap: 10px;
+  }
+  .expense-row:last-child { border-bottom: none; }
+  .expense-main { display: flex; flex-direction: column; min-width: 0; }
+  .expense-cat { font-weight: 500; font-size: 0.92rem; }
+  .expense-date { color: var(--ink-soft); font-size: 0.78rem; }
+  .expense-amount {
+    font-family: 'IBM Plex Mono', monospace;
+    font-variant-numeric: tabular-nums;
+    font-size: 0.95rem;
+    white-space: nowrap;
+  }
+  .expense-del {
+    background: none; border: none; color: var(--ink-soft);
+    cursor: pointer; font-size: 1rem; padding: 2px 6px;
+  }
+  .expense-del:hover { color: var(--accent-over); }
+
+  .empty-note {
+    color: var(--ink-soft);
+    font-size: 0.9rem;
+    text-align: center;
+    padding: 20px 0;
+  }
+
+  .tabs {
+    display: flex;
+    gap: 6px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 4px;
+    margin-bottom: 20px;
+  }
+  .tabs button {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--ink-soft);
+    padding: 9px 6px;
+    border-radius: 7px;
+    font-family: inherit;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  .tabs button.active {
+    background: var(--accent-good-soft);
+    color: var(--accent-good);
+  }
+
+  .progress-track {
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    height: 10px;
+    overflow: hidden;
+    margin: 14px 0 8px;
+  }
+  .progress-fill {
+    height: 100%;
+    border-radius: 999px;
+    transition: width 0.3s ease;
+  }
+  .progress-fill.good { background: var(--accent-good); }
+  .progress-fill.over { background: var(--accent-over); }
+
+  .proj-status {
+    font-size: 0.9rem;
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 10px;
+  }
+  .proj-status.good { background: var(--accent-good-soft); color: var(--accent-good); }
+  .proj-status.over { background: var(--accent-over-soft); color: var(--accent-over); }
+
+  .proj-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-top: 16px;
+  }
+  .proj-grid .hero-sub-item .v { font-size: 1.05rem; }
+
+  .modal-backdrop {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.4);
+    display: flex; align-items: flex-end;
+    justify-content: center;
+    z-index: 50;
+  }
+  @media (min-width: 480px) {
+    .modal-backdrop { align-items: center; }
+  }
+  .modal {
+    background: var(--bg-elevated);
+    border-radius: 18px 18px 0 0;
+    padding: 22px 20px calc(22px + env(safe-area-inset-bottom, 0px));
+    width: 100%;
+    max-width: 420px;
+    border: 1px solid var(--line);
+  }
+  @media (min-width: 480px) {
+    .modal { border-radius: 18px; }
+  }
+  .modal h3 {
+    font-family: 'Fraunces', serif;
+    font-weight: 500;
+    margin: 0 0 4px;
+    font-size: 1.15rem;
+  }
+  .modal-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 18px;
+  }
+  .modal-actions button { flex: 1; }
+
+  ::selection { background: var(--accent-good-soft); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="topbar">
+    <div class="brand">Control de Gastos</div>
+    <div class="theme-toggle" id="themeToggle">
+      <button data-theme="light">Claro</button>
+      <button data-theme="dark">Oscuro</button>
+    </div>
+  </div>
+
+  <div class="tabs" id="tabBar">
+    <button data-tab="diario" class="active">Día a día</button>
+    <button data-tab="p15">Proyección 15 días</button>
+    <button data-tab="p30">Proyección 30 días</button>
+  </div>
+
+  <div class="month-row">
+    <div class="month-nav">
+      <button id="prevMonth" aria-label="Mes anterior">‹</button>
+      <div class="month-label" id="monthLabel">—</div>
+      <button id="nextMonth" aria-label="Mes siguiente">›</button>
+    </div>
+  </div>
+
+  <div id="panelDiario">
+
+  <div class="hero-card">
+    <div class="hero-label">Disponible este mes</div>
+    <div class="hero-amount" id="heroAmount">$0.00</div>
+    <div class="hero-sub">
+      <div class="hero-sub-item">
+        <span class="k">Ingreso inicial</span>
+        <span class="v" id="initialAmountShown">$0.00</span>
+      </div>
+      <div class="hero-sub-item">
+        <span class="k">Gastado</span>
+        <span class="v" id="spentAmountShown">$0.00</span>
+      </div>
+    </div>
+    <button class="link-btn" id="editInitialBtn" style="margin-top:12px;">Editar ingreso inicial</button>
+    <div class="initial-edit" id="initialEditRow" style="display:none;">
+      <input type="number" id="initialInput" placeholder="0.00" step="0.01" inputmode="decimal">
+      <button class="secondary" id="saveInitialBtn">Guardar</button>
+    </div>
+  </div>
+
+  <div class="section">
+    <button class="primary" id="addExpenseBtn">Registrar gasto</button>
+  </div>
+
+  <div class="section">
+    <div class="section-head">
+      <div class="section-title">Tendencia mensual</div>
+    </div>
+    <div class="card">
+      <div class="chart-wrap"><canvas id="trendChart"></canvas></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-head">
+      <div class="section-title">Categorías</div>
+    </div>
+    <div class="card">
+      <div class="cat-list" id="catList"></div>
+      <div class="cat-add-row">
+        <input type="text" id="newCatInput" placeholder="Nueva categoría">
+        <button class="secondary" id="addCatBtn">Agregar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-head">
+      <div class="section-title">Gastos del mes</div>
+    </div>
+    <div class="card">
+      <ul class="expense-list" id="expenseList"></ul>
+      <div class="empty-note" id="emptyNote" style="display:none;">Todavía no hay gastos registrados este mes.</div>
+    </div>
+  </div>
+
+  </div>
+
+  <div id="panelP15" style="display:none;">
+    <div class="hero-card">
+      <div class="hero-label" id="p15Label">Presupuesto de tu quincena</div>
+      <div class="hero-amount" id="p15Amount">$0.00</div>
+      <div class="progress-track"><div class="progress-fill" id="p15Bar" style="width:0%;"></div></div>
+      <div class="hero-sub proj-grid">
+        <div class="hero-sub-item">
+          <span class="k">Planeado</span>
+          <span class="v" id="p15Planned">$0.00</span>
+        </div>
+        <div class="hero-sub-item">
+          <span class="k">Gastado</span>
+          <span class="v" id="p15Spent">$0.00</span>
+        </div>
+        <div class="hero-sub-item">
+          <span class="k">Día del periodo</span>
+          <span class="v" id="p15Day">—</span>
+        </div>
+        <div class="hero-sub-item">
+          <span class="k">Ritmo proyectado</span>
+          <span class="v" id="p15Projected">$0.00</span>
+        </div>
+      </div>
+      <div class="proj-status" id="p15Status"></div>
+      <button class="link-btn" id="editP15Btn" style="margin-top:14px;">Editar presupuesto de 15 días</button>
+      <div class="initial-edit" id="p15EditRow" style="display:none;">
+        <input type="number" id="p15Input" placeholder="0.00" step="0.01" inputmode="decimal">
+        <button class="secondary" id="saveP15Btn">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="panelP30" style="display:none;">
+    <div class="hero-card">
+      <div class="hero-label">Presupuesto para el mes completo (30 días)</div>
+      <div class="hero-amount" id="p30Amount">$0.00</div>
+      <div class="progress-track"><div class="progress-fill" id="p30Bar" style="width:0%;"></div></div>
+      <div class="hero-sub proj-grid">
+        <div class="hero-sub-item">
+          <span class="k">Planeado</span>
+          <span class="v" id="p30Planned">$0.00</span>
+        </div>
+        <div class="hero-sub-item">
+          <span class="k">Gastado</span>
+          <span class="v" id="p30Spent">$0.00</span>
+        </div>
+        <div class="hero-sub-item">
+          <span class="k">Día del periodo</span>
+          <span class="v" id="p30Day">—</span>
+        </div>
+        <div class="hero-sub-item">
+          <span class="k">Ritmo proyectado</span>
+          <span class="v" id="p30Projected">$0.00</span>
+        </div>
+      </div>
+      <div class="proj-status" id="p30Status"></div>
+      <button class="link-btn" id="editP30Btn" style="margin-top:14px;">Editar presupuesto de 30 días</button>
+      <div class="initial-edit" id="p30EditRow" style="display:none;">
+        <input type="number" id="p30Input" placeholder="0.00" step="0.01" inputmode="decimal">
+        <button class="secondary" id="saveP30Btn">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div id="modalRoot"></div>
+
+<script>
+(function() {
+  "use strict";
+
+  // ---------- Storage ----------
+  const STORAGE_KEYS = {
+    categories: 'gastos:categories',
+    expenses: 'gastos:expenses',
+    months: 'gastos:months',
+    theme: 'gastos:theme'
+  };
+
+  function loadJSON(key, fallback) {
+    try {
+      const raw = localStorage.getItem(key);
+      if (raw === null) return fallback;
+      return JSON.parse(raw);
+    } catch (e) {
+      console.error('Error leyendo almacenamiento', key, e);
+      return fallback;
+    }
+  }
+  function saveJSON(key, value) {
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+    } catch (e) {
+      console.error('Error guardando almacenamiento', key, e);
+    }
+  }
+
+  const DEFAULT_CATEGORIES = [
+    'Comida', 'Gasolina', 'Servicios básicos', 'Suscripciones',
+    'Alquiler de habitación', 'Ropa', 'Juegos', 'Temu', 'Otros gastos'
+  ];
+
+  let categories = loadJSON(STORAGE_KEYS.categories, null);
+  if (!categories) {
+    categories = DEFAULT_CATEGORIES.map((name, i) => ({ id: 'c' + i, name }));
+    saveJSON(STORAGE_KEYS.categories, categories);
+  }
+  let expenses = loadJSON(STORAGE_KEYS.expenses, []);
+  let months = loadJSON(STORAGE_KEYS.months, {}); // { 'YYYY-MM': { initial: number } }
+
+  // ---------- Theme ----------
+  function applyTheme(theme) {
+    if (theme === 'light' || theme === 'dark') {
+      document.documentElement.setAttribute('data-theme', theme);
+    } else {
+      document.documentElement.removeAttribute('data-theme');
+    }
+    document.querySelectorAll('#themeToggle button').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.theme === theme);
+    });
+  }
+  let currentTheme = loadJSON(STORAGE_KEYS.theme, 'system');
+  applyTheme(currentTheme);
+  document.getElementById('themeToggle').addEventListener('click', (e) => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    currentTheme = btn.dataset.theme;
+    saveJSON(STORAGE_KEYS.theme, currentTheme);
+    applyTheme(currentTheme);
+  });
+
+  // ---------- Month state ----------
+  const now = new Date();
+  let viewYear = now.getFullYear();
+  let viewMonth = now.getMonth(); // 0-indexed
+
+  function monthKey(y, m) {
+    return y + '-' + String(m + 1).padStart(2, '0');
+  }
+  const MONTH_NAMES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+
+  function getMonthData(key) {
+    return months[key] || { initial: 0 };
+  }
+  function setMonthInitial(key, value) {
+    const data = months[key] || {};
+    data.initial = value;
+    months[key] = data;
+    saveJSON(STORAGE_KEYS.months, months);
+  }
+  function setMonthPlan(key, field, value) {
+    const data = months[key] || {};
+    data[field] = value;
+    months[key] = data;
+    saveJSON(STORAGE_KEYS.months, months);
+  }
+
+  // ---------- Tabs ----------
+  let activeTab = 'diario';
+  const panels = { diario: 'panelDiario', p15: 'panelP15', p30: 'panelP30' };
+  document.getElementById('tabBar').addEventListener('click', (e) => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    activeTab = btn.dataset.tab;
+    document.querySelectorAll('#tabBar button').forEach(b => b.classList.toggle('active', b === btn));
+    Object.entries(panels).forEach(([key, id]) => {
+      document.getElementById(id).style.display = key === activeTab ? 'block' : 'none';
+    });
+    render();
+  });
+
+  function daysInMonth(y, m) {
+    return new Date(y, m + 1, 0).getDate();
+  }
+
+  function currentQuincena() {
+    const today = new Date();
+    return today.getDate() <= 15 ? 1 : 2;
+  }
+
+  function renderProjection(prefix, field, dayStart, dayEnd) {
+    const key = monthKey(viewYear, viewMonth);
+    const data = getMonthData(key);
+    const planned = data[field] || 0;
+    const periodDays = dayEnd - dayStart + 1;
+
+    const today = new Date();
+    const isCurrentMonth = viewYear === today.getFullYear() && viewMonth === today.getMonth();
+    const isPastMonth = (viewYear < today.getFullYear()) || (viewYear === today.getFullYear() && viewMonth < today.getMonth());
+    let elapsed;
+    if (isCurrentMonth) {
+      elapsed = Math.min(Math.max(today.getDate() - dayStart + 1, 0), periodDays);
+    } else if (isPastMonth) {
+      elapsed = periodDays;
+    } else {
+      elapsed = 0;
+    }
+
+    const spent = expensesForMonth(key)
+      .filter(e => {
+        const d = parseInt(e.date.slice(8, 10), 10);
+        return d >= dayStart && d <= dayEnd;
+      })
+      .reduce((sum, e) => sum + e.amount, 0);
+
+    const remaining = planned - spent;
+    const pct = planned > 0 ? Math.min(100, (spent / planned) * 100) : (spent > 0 ? 100 : 0);
+    const expectedPace = elapsed > 0 ? planned * (elapsed / periodDays) : 0;
+    const onTrack = spent <= expectedPace + 0.01 || planned === 0;
+    const projectedTotal = elapsed > 0 ? (spent / elapsed) * periodDays : spent;
+
+    document.getElementById(prefix + 'Amount').textContent = fmt(remaining);
+    document.getElementById(prefix + 'Amount').classList.toggle('over', remaining < 0);
+    document.getElementById(prefix + 'Amount').classList.toggle('good', remaining >= 0);
+    document.getElementById(prefix + 'Planned').textContent = fmt(planned);
+    document.getElementById(prefix + 'Spent').textContent = fmt(spent);
+    document.getElementById(prefix + 'Day').textContent = elapsed + ' de ' + periodDays;
+    document.getElementById(prefix + 'Projected').textContent = fmt(projectedTotal);
+    document.getElementById(prefix + 'Input').value = planned || '';
+
+    const bar = document.getElementById(prefix + 'Bar');
+    bar.style.width = pct + '%';
+    bar.classList.toggle('good', onTrack);
+    bar.classList.toggle('over', !onTrack);
+
+    const statusEl = document.getElementById(prefix + 'Status');
+    statusEl.classList.remove('good', 'over');
+    if (planned === 0) {
+      statusEl.textContent = 'Todavía no defines un presupuesto para este periodo.';
+      statusEl.classList.add('over');
+    } else if (elapsed === 0) {
+      statusEl.textContent = 'Este periodo aún no comienza.';
+      statusEl.classList.add('good');
+    } else if (onTrack) {
+      statusEl.textContent = 'Vas bien encaminado según lo planeado.';
+      statusEl.classList.add('good');
+    } else {
+      statusEl.textContent = 'Vas por encima del ritmo planeado para este punto del periodo.';
+      statusEl.classList.add('over');
+    }
+  }
+
+  function expensesForMonth(key) {
+    return expenses.filter(e => e.month === key);
+  }
+  function totalForMonth(key) {
+    return expensesForMonth(key).reduce((sum, e) => sum + e.amount, 0);
+  }
+
+  function fmt(n) {
+    const sign = n < 0 ? '-' : '';
+    return sign + '$' + Math.abs(n).toLocaleString('es-SV', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  // ---------- Rendering ----------
+  let trendChartInstance = null;
+
+  function render() {
+    const key = monthKey(viewYear, viewMonth);
+    document.getElementById('monthLabel').textContent = MONTH_NAMES[viewMonth] + ' ' + viewYear;
+
+    const data = getMonthData(key);
+    const spent = totalForMonth(key);
+    const remaining = data.initial - spent;
+
+    document.getElementById('initialAmountShown').textContent = fmt(data.initial);
+    document.getElementById('spentAmountShown').textContent = fmt(spent);
+    const heroEl = document.getElementById('heroAmount');
+    heroEl.textContent = fmt(remaining);
+    heroEl.classList.toggle('over', remaining < 0);
+    heroEl.classList.toggle('good', remaining >= 0);
+
+    document.getElementById('initialInput').value = data.initial || '';
+
+    renderCategories();
+    renderExpenseList(key);
+    renderChart();
+
+    const totalDaysInMonth = daysInMonth(viewYear, viewMonth);
+    const q = currentQuincena();
+    const qStart = q === 1 ? 1 : 16;
+    const qEnd = q === 1 ? 15 : totalDaysInMonth;
+    document.getElementById('p15Label').textContent =
+      'Presupuesto de tu quincena actual (días ' + qStart + '–' + qEnd + ')';
+    renderProjection('p15', 'plan15_' + q, qStart, qEnd);
+
+    renderProjection('p30', 'plan30', 1, totalDaysInMonth);
+  }
+
+  function renderCategories() {
+    const list = document.getElementById('catList');
+    list.innerHTML = '';
+    categories.forEach(cat => {
+      const pill = document.createElement('div');
+      pill.className = 'cat-pill';
+      const nameSpan = document.createElement('span');
+      nameSpan.textContent = cat.name;
+      pill.appendChild(nameSpan);
+
+      const editBtn = document.createElement('button');
+      editBtn.textContent = '✎';
+      editBtn.title = 'Editar';
+      editBtn.addEventListener('click', () => editCategory(cat));
+      pill.appendChild(editBtn);
+
+      const delBtn = document.createElement('button');
+      delBtn.textContent = '×';
+      delBtn.title = 'Eliminar';
+      delBtn.addEventListener('click', () => deleteCategory(cat));
+      pill.appendChild(delBtn);
+
+      list.appendChild(pill);
+    });
+  }
+
+  function renderExpenseList(key) {
+    const ul = document.getElementById('expenseList');
+    const emptyNote = document.getElementById('emptyNote');
+    ul.innerHTML = '';
+    const items = expensesForMonth(key).slice().sort((a, b) => b.date.localeCompare(a.date));
+    if (items.length === 0) {
+      emptyNote.style.display = 'block';
+      return;
+    }
+    emptyNote.style.display = 'none';
+    items.forEach(item => {
+      const li = document.createElement('li');
+      li.className = 'expense-row';
+
+      const main = document.createElement('div');
+      main.className = 'expense-main';
+      const catEl = document.createElement('span');
+      catEl.className = 'expense-cat';
+      catEl.textContent = item.categoryName;
+      const dateEl = document.createElement('span');
+      dateEl.className = 'expense-date';
+      dateEl.textContent = formatDateDisplay(item.date);
+      main.appendChild(catEl);
+      main.appendChild(dateEl);
+
+      const right = document.createElement('div');
+      right.style.display = 'flex';
+      right.style.alignItems = 'center';
+      right.style.gap = '4px';
+      const amountEl = document.createElement('span');
+      amountEl.className = 'expense-amount';
+      amountEl.textContent = fmt(item.amount);
+      const delBtn = document.createElement('button');
+      delBtn.className = 'expense-del';
+      delBtn.textContent = '×';
+      delBtn.title = 'Eliminar gasto';
+      delBtn.addEventListener('click', () => deleteExpense(item.id));
+      right.appendChild(amountEl);
+      right.appendChild(delBtn);
+
+      li.appendChild(main);
+      li.appendChild(right);
+      ul.appendChild(li);
+    });
+  }
+
+  function formatDateDisplay(iso) {
+    const [y, m, d] = iso.split('-');
+    return d + '/' + m + '/' + y;
+  }
+
+  function lastNMonths(n) {
+    const result = [];
+    let y = viewYear, m = viewMonth;
+    for (let i = 0; i < n; i++) {
+      result.unshift({ key: monthKey(y, m), label: MONTH_NAMES[m].slice(0, 3) + ' ' + String(y).slice(2) });
+      m -= 1;
+      if (m < 0) { m = 11; y -= 1; }
+    }
+    return result;
+  }
+
+  function renderChart() {
+    const monthsList = lastNMonths(6);
+    const totals = monthsList.map(mo => totalForMonth(mo.key));
+    const labels = monthsList.map(mo => mo.label);
+
+    const styles = getComputedStyle(document.documentElement);
+    const inkColor = styles.getPropertyValue('--ink').trim();
+    const goodColor = styles.getPropertyValue('--accent-good').trim();
+    const lineColor = styles.getPropertyValue('--line').trim();
+
+    const ctx = document.getElementById('trendChart').getContext('2d');
+    if (trendChartInstance) trendChartInstance.destroy();
+    trendChartInstance = new Chart(ctx, {
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            type: 'bar',
+            label: 'Gasto total',
+            data: totals,
+            backgroundColor: goodColor + '55',
+            borderRadius: 6,
+            borderSkipped: false,
+            order: 2
+          },
+          {
+            type: 'line',
+            label: 'Tendencia',
+            data: totals,
+            borderColor: goodColor,
+            backgroundColor: goodColor,
+            tension: 0.35,
+            pointRadius: 4,
+            pointBackgroundColor: goodColor,
+            order: 1
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false }
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            ticks: { color: inkColor, font: { family: 'Inter' } }
+          },
+          y: {
+            grid: { color: lineColor },
+            ticks: {
+              color: inkColor,
+              font: { family: 'IBM Plex Mono', size: 11 },
+              callback: (v) => '$' + v
+            },
+            beginAtZero: true
+          }
+        }
+      }
+    });
+  }
+
+  // ---------- Actions ----------
+  document.getElementById('prevMonth').addEventListener('click', () => {
+    viewMonth -= 1;
+    if (viewMonth < 0) { viewMonth = 11; viewYear -= 1; }
+    render();
+  });
+  document.getElementById('nextMonth').addEventListener('click', () => {
+    viewMonth += 1;
+    if (viewMonth > 11) { viewMonth = 0; viewYear += 1; }
+    render();
+  });
+
+  document.getElementById('editInitialBtn').addEventListener('click', () => {
+    const row = document.getElementById('initialEditRow');
+    row.style.display = row.style.display === 'none' ? 'flex' : 'none';
+    document.getElementById('initialInput').focus();
+  });
+  document.getElementById('saveInitialBtn').addEventListener('click', () => {
+    const val = parseFloat(document.getElementById('initialInput').value) || 0;
+    const key = monthKey(viewYear, viewMonth);
+    setMonthInitial(key, val);
+    document.getElementById('initialEditRow').style.display = 'none';
+    render();
+  });
+
+  document.getElementById('editP15Btn').addEventListener('click', () => {
+    const row = document.getElementById('p15EditRow');
+    row.style.display = row.style.display === 'none' ? 'flex' : 'none';
+    document.getElementById('p15Input').focus();
+  });
+  document.getElementById('saveP15Btn').addEventListener('click', () => {
+    const val = parseFloat(document.getElementById('p15Input').value) || 0;
+    const q = currentQuincena();
+    setMonthPlan(monthKey(viewYear, viewMonth), 'plan15_' + q, val);
+    document.getElementById('p15EditRow').style.display = 'none';
+    render();
+  });
+
+  document.getElementById('editP30Btn').addEventListener('click', () => {
+    const row = document.getElementById('p30EditRow');
+    row.style.display = row.style.display === 'none' ? 'flex' : 'none';
+    document.getElementById('p30Input').focus();
+  });
+  document.getElementById('saveP30Btn').addEventListener('click', () => {
+    const val = parseFloat(document.getElementById('p30Input').value) || 0;
+    setMonthPlan(monthKey(viewYear, viewMonth), 'plan30', val);
+    document.getElementById('p30EditRow').style.display = 'none';
+    render();
+  });
+
+  function deleteExpense(id) {
+    expenses = expenses.filter(e => e.id !== id);
+    saveJSON(STORAGE_KEYS.expenses, expenses);
+    render();
+  }
+
+  function addCategory(name) {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    const id = 'c' + Date.now();
+    categories.push({ id, name: trimmed });
+    saveJSON(STORAGE_KEYS.categories, categories);
+    render();
+  }
+  document.getElementById('addCatBtn').addEventListener('click', () => {
+    const input = document.getElementById('newCatInput');
+    addCategory(input.value);
+    input.value = '';
+  });
+  document.getElementById('newCatInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      addCategory(e.target.value);
+      e.target.value = '';
+    }
+  });
+
+  function editCategory(cat) {
+    openModal({
+      title: 'Editar categoría',
+      fields: [{ type: 'text', id: 'catName', label: 'Nombre', value: cat.name }],
+      confirmLabel: 'Guardar',
+      onConfirm: (values) => {
+        const newName = values.catName.trim();
+        if (!newName) return;
+        cat.name = newName;
+        saveJSON(STORAGE_KEYS.categories, categories);
+        render();
+      }
+    });
+  }
+
+  function deleteCategory(cat) {
+    openModal({
+      title: 'Eliminar categoría',
+      message: 'Vas a eliminar "' + cat.name + '". Los gastos ya registrados con esta categoría conservan el nombre.',
+      confirmLabel: 'Eliminar',
+      danger: true,
+      onConfirm: () => {
+        categories = categories.filter(c => c.id !== cat.id);
+        saveJSON(STORAGE_KEYS.categories, categories);
+        render();
+      }
+    });
+  }
+
+  document.getElementById('addExpenseBtn').addEventListener('click', () => {
+    if (categories.length === 0) {
+      openModal({
+        title: 'Sin categorías',
+        message: 'Agrega al menos una categoría antes de registrar un gasto.',
+        confirmLabel: 'Entendido',
+        onConfirm: () => {}
+      });
+      return;
+    }
+    const today = new Date().toISOString().slice(0, 10);
+    openModal({
+      title: 'Registrar gasto',
+      fields: [
+        { type: 'number', id: 'amount', label: 'Monto', placeholder: '0.00' },
+        { type: 'select', id: 'category', label: 'Categoría', options: categories.map(c => ({ value: c.id, label: c.name })) },
+        { type: 'date', id: 'date', label: 'Fecha', value: today }
+      ],
+      confirmLabel: 'Guardar gasto',
+      onConfirm: (values) => {
+        const amount = parseFloat(values.amount);
+        if (!amount || amount <= 0) return;
+        const cat = categories.find(c => c.id === values.category);
+        const date = values.date || today;
+        const key = monthKey(parseInt(date.slice(0,4)), parseInt(date.slice(5,7)) - 1);
+        expenses.push({
+          id: 'e' + Date.now(),
+          amount: amount,
+          categoryId: cat ? cat.id : null,
+          categoryName: cat ? cat.name : 'Sin categoría',
+          date: date,
+          month: key
+        });
+        saveJSON(STORAGE_KEYS.expenses, expenses);
+        render();
+      }
+    });
+  });
+
+  // ---------- Simple modal system ----------
+  function openModal({ title, message, fields, confirmLabel, danger, onConfirm }) {
+    const root = document.getElementById('modalRoot');
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop';
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+
+    const h3 = document.createElement('h3');
+    h3.textContent = title;
+    modal.appendChild(h3);
+
+    if (message) {
+      const p = document.createElement('p');
+      p.style.color = 'var(--ink-soft)';
+      p.style.fontSize = '0.9rem';
+      p.textContent = message;
+      modal.appendChild(p);
+    }
+
+    const inputs = {};
+    if (fields) {
+      fields.forEach(field => {
+        const label = document.createElement('label');
+        label.textContent = field.label;
+        modal.appendChild(label);
+        let input;
+        if (field.type === 'select') {
+          input = document.createElement('select');
+          field.options.forEach(opt => {
+            const o = document.createElement('option');
+            o.value = opt.value;
+            o.textContent = opt.label;
+            input.appendChild(o);
+          });
+        } else {
+          input = document.createElement('input');
+          input.type = field.type;
+          if (field.placeholder) input.placeholder = field.placeholder;
+          if (field.type === 'number') input.step = '0.01';
+        }
+        if (field.value !== undefined) input.value = field.value;
+        inputs[field.id] = input;
+        modal.appendChild(input);
+      });
+    }
+
+    const actions = document.createElement('div');
+    actions.className = 'modal-actions';
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'secondary';
+    cancelBtn.textContent = 'Cancelar';
+    cancelBtn.addEventListener('click', close);
+    const confirmBtn = document.createElement('button');
+    confirmBtn.className = 'primary';
+    confirmBtn.textContent = confirmLabel || 'Confirmar';
+    if (danger) {
+      confirmBtn.style.background = 'var(--accent-over)';
+    }
+    confirmBtn.addEventListener('click', () => {
+      const values = {};
+      Object.keys(inputs).forEach(k => values[k] = inputs[k].value);
+      onConfirm(values);
+      close();
+    });
+    actions.appendChild(cancelBtn);
+    actions.appendChild(confirmBtn);
+    modal.appendChild(actions);
+
+    backdrop.appendChild(modal);
+    backdrop.addEventListener('click', (e) => { if (e.target === backdrop) close(); });
+    root.appendChild(backdrop);
+
+    function close() {
+      root.innerHTML = '';
+    }
+
+    const firstInput = fields && fields.length ? inputs[fields[0].id] : null;
+    if (firstInput) setTimeout(() => firstInput.focus(), 50);
+  }
+
+  render();
+})();
+</script>
+</body>
+</html>
