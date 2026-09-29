@@ -295,6 +295,20 @@
   }
 
   .expense-list { list-style: none; margin: 0; padding: 0; }
+  .day-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 14px 0 6px;
+    font-size: 0.8rem;
+    color: var(--ink-soft);
+  }
+  .day-header:first-child { padding-top: 0; }
+  .day-header .day-total {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.82rem;
+    font-variant-numeric: tabular-nums;
+  }
   .expense-row {
     display: flex;
     align-items: center;
@@ -324,6 +338,29 @@
     font-size: 0.9rem;
     text-align: center;
     padding: 20px 0;
+  }
+
+  .quincena-picker {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 14px;
+  }
+  .quincena-picker button {
+    flex: 1;
+    background: var(--bg-elevated);
+    border: 1px solid var(--line);
+    color: var(--ink-soft);
+    padding: 8px;
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 0.82rem;
+    cursor: pointer;
+  }
+  .quincena-picker button.active {
+    background: var(--accent-good-soft);
+    color: var(--accent-good);
+    border-color: var(--accent-good-soft);
+    font-weight: 600;
   }
 
   .tabs {
@@ -508,6 +545,10 @@
   </div>
 
   <div id="panelP15" style="display:none;">
+    <div class="quincena-picker" id="quincenaPicker" style="display:none;">
+      <button data-q="1">Quincena 1 (1–15)</button>
+      <button data-q="2">Quincena 2 (16–fin)</button>
+    </div>
     <div class="hero-card">
       <div class="hero-label" id="p15Label">Presupuesto de tu quincena</div>
       <div class="hero-amount" id="p15Amount">$0.00</div>
@@ -606,15 +647,33 @@
   }
 
   const DEFAULT_CATEGORIES = [
-    'Comida', 'Gasolina', 'Servicios básicos', 'Suscripciones',
-    'Alquiler de habitación', 'Ropa', 'Juegos', 'Temu', 'Otros gastos'
+    { name: 'Comida', recurring: false },
+    { name: 'Gasolina', recurring: false },
+    { name: 'Servicios básicos', recurring: false },
+    { name: 'Suscripciones', recurring: true },
+    { name: 'Alquiler de habitación', recurring: true },
+    { name: 'Ropa', recurring: false },
+    { name: 'Juegos', recurring: false },
+    { name: 'Temu', recurring: false },
+    { name: 'Otros gastos', recurring: false }
   ];
 
   let categories = loadJSON(STORAGE_KEYS.categories, null);
   if (!categories) {
-    categories = DEFAULT_CATEGORIES.map((name, i) => ({ id: 'c' + i, name }));
+    categories = DEFAULT_CATEGORIES.map((c, i) => ({ id: 'c' + i, name: c.name, recurring: c.recurring }));
     saveJSON(STORAGE_KEYS.categories, categories);
   }
+  // Migración: si alguien ya tenía categorías guardadas de una versión anterior sin el campo 'recurring',
+  // se reconoce por nombre si debería quedar como recurrente (igual que en DEFAULT_CATEGORIES).
+  let migrated = false;
+  categories.forEach(c => {
+    if (typeof c.recurring !== 'boolean') {
+      const match = DEFAULT_CATEGORIES.find(d => d.name === c.name);
+      c.recurring = match ? match.recurring : false;
+      migrated = true;
+    }
+  });
+  if (migrated) saveJSON(STORAGE_KEYS.categories, categories);
   let expenses = loadJSON(STORAGE_KEYS.expenses, []);
   let months = loadJSON(STORAGE_KEYS.months, {}); // { 'YYYY-MM': { initial: number } }
 
@@ -688,7 +747,29 @@
     return today.getDate() <= 15 ? 1 : 2;
   }
 
-  function renderProjection(prefix, field, dayStart, dayEnd) {
+  let manualQuincena = null; // se resetea al navegar de mes; solo aplica a meses que no son el actual
+
+  function isViewingCurrentMonth() {
+    const today = new Date();
+    return viewYear === today.getFullYear() && viewMonth === today.getMonth();
+  }
+
+  function effectiveQuincena() {
+    if (isViewingCurrentMonth()) return currentQuincena();
+    if (manualQuincena) return manualQuincena;
+    const today = new Date();
+    const isFuture = (viewYear > today.getFullYear()) || (viewYear === today.getFullYear() && viewMonth > today.getMonth());
+    return isFuture ? 1 : 2;
+  }
+
+  document.getElementById('quincenaPicker').addEventListener('click', (e) => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    manualQuincena = parseInt(btn.dataset.q, 10);
+    render();
+  });
+
+  function renderProjection(prefix, field, dayStart, dayEnd, prorateRecurring) {
     const key = monthKey(viewYear, viewMonth);
     const data = getMonthData(key);
     const planned = data[field] || 0;
@@ -706,12 +787,19 @@
       elapsed = 0;
     }
 
-    const spent = expensesForMonth(key)
-      .filter(e => {
+    let spent = 0;
+    expensesForMonth(key).forEach(e => {
+      const cat = categories.find(c => c.id === e.categoryId);
+      const isRecurring = !!(cat && cat.recurring);
+      if (prorateRecurring && isRecurring) {
+        // Gasto fijo mensual: se cuenta solo la mitad en la vista de quincena,
+        // sin importar el día exacto en que se registró.
+        spent += e.amount * 0.5;
+      } else {
         const d = parseInt(e.date.slice(8, 10), 10);
-        return d >= dayStart && d <= dayEnd;
-      })
-      .reduce((sum, e) => sum + e.amount, 0);
+        if (d >= dayStart && d <= dayEnd) spent += e.amount;
+      }
+    });
 
     const remaining = planned - spent;
     const pct = planned > 0 ? Math.min(100, (spent / planned) * 100) : (spent > 0 ? 100 : 0);
@@ -784,17 +872,28 @@
 
     renderCategories();
     renderExpenseList(key);
-    renderChart();
 
     const totalDaysInMonth = daysInMonth(viewYear, viewMonth);
-    const q = currentQuincena();
+    const q = effectiveQuincena();
     const qStart = q === 1 ? 1 : 16;
     const qEnd = q === 1 ? 15 : totalDaysInMonth;
-    document.getElementById('p15Label').textContent =
-      'Presupuesto de tu quincena actual (días ' + qStart + '–' + qEnd + ')';
-    renderProjection('p15', 'plan15_' + q, qStart, qEnd);
 
-    renderProjection('p30', 'plan30', 1, totalDaysInMonth);
+    const isCurrent = isViewingCurrentMonth();
+    document.getElementById('quincenaPicker').style.display = isCurrent ? 'none' : 'flex';
+    document.querySelectorAll('#quincenaPicker button').forEach(b => {
+      b.classList.toggle('active', parseInt(b.dataset.q, 10) === q);
+    });
+    document.getElementById('p15Label').textContent =
+      (isCurrent ? 'Presupuesto de tu quincena actual (días ' : 'Presupuesto de esta quincena (días ')
+      + qStart + '–' + qEnd + ')';
+    renderProjection('p15', 'plan15_' + q, qStart, qEnd, true);
+    renderProjection('p30', 'plan30', 1, totalDaysInMonth, false);
+
+    try {
+      renderChart();
+    } catch (e) {
+      console.error('No se pudo dibujar la gráfica', e);
+    }
   }
 
   function renderCategories() {
@@ -804,7 +903,7 @@
       const pill = document.createElement('div');
       pill.className = 'cat-pill';
       const nameSpan = document.createElement('span');
-      nameSpan.textContent = cat.name;
+      nameSpan.textContent = cat.name + (cat.recurring ? ' · fijo' : '');
       pill.appendChild(nameSpan);
 
       const editBtn = document.createElement('button');
@@ -833,7 +932,27 @@
       return;
     }
     emptyNote.style.display = 'none';
+
+    let lastDate = null;
     items.forEach(item => {
+      if (item.date !== lastDate) {
+        lastDate = item.date;
+        const dayTotal = items
+          .filter(e => e.date === item.date)
+          .reduce((sum, e) => sum + e.amount, 0);
+
+        const header = document.createElement('li');
+        header.className = 'day-header';
+        const dateSpan = document.createElement('span');
+        dateSpan.textContent = formatDateDisplay(item.date);
+        const totalSpan = document.createElement('span');
+        totalSpan.className = 'day-total';
+        totalSpan.textContent = 'Total del día: ' + fmt(dayTotal);
+        header.appendChild(dateSpan);
+        header.appendChild(totalSpan);
+        ul.appendChild(header);
+      }
+
       const li = document.createElement('li');
       li.className = 'expense-row';
 
@@ -842,11 +961,7 @@
       const catEl = document.createElement('span');
       catEl.className = 'expense-cat';
       catEl.textContent = item.categoryName;
-      const dateEl = document.createElement('span');
-      dateEl.className = 'expense-date';
-      dateEl.textContent = formatDateDisplay(item.date);
       main.appendChild(catEl);
-      main.appendChild(dateEl);
 
       const right = document.createElement('div');
       right.style.display = 'flex';
@@ -898,6 +1013,7 @@
     const ctx = document.getElementById('trendChart').getContext('2d');
     if (trendChartInstance) trendChartInstance.destroy();
     trendChartInstance = new Chart(ctx, {
+      type: 'bar',
       data: {
         labels: labels,
         datasets: [
@@ -952,11 +1068,13 @@
   document.getElementById('prevMonth').addEventListener('click', () => {
     viewMonth -= 1;
     if (viewMonth < 0) { viewMonth = 11; viewYear -= 1; }
+    manualQuincena = null;
     render();
   });
   document.getElementById('nextMonth').addEventListener('click', () => {
     viewMonth += 1;
     if (viewMonth > 11) { viewMonth = 0; viewYear += 1; }
+    manualQuincena = null;
     render();
   });
 
@@ -980,7 +1098,7 @@
   });
   document.getElementById('saveP15Btn').addEventListener('click', () => {
     const val = parseFloat(document.getElementById('p15Input').value) || 0;
-    const q = currentQuincena();
+    const q = effectiveQuincena();
     setMonthPlan(monthKey(viewYear, viewMonth), 'plan15_' + q, val);
     document.getElementById('p15EditRow').style.display = 'none';
     render();
@@ -1027,12 +1145,21 @@
   function editCategory(cat) {
     openModal({
       title: 'Editar categoría',
-      fields: [{ type: 'text', id: 'catName', label: 'Nombre', value: cat.name }],
+      fields: [
+        { type: 'text', id: 'catName', label: 'Nombre', value: cat.name },
+        {
+          type: 'checkbox', id: 'catRecurring',
+          label: 'Es un gasto fijo mensual (alquiler, suscripciones, etc.)',
+          hint: 'En la proyección de 15 días se cuenta solo la mitad del monto, sin importar qué día lo registraste. En la de 30 días siempre se cuenta completo.',
+          value: !!cat.recurring
+        }
+      ],
       confirmLabel: 'Guardar',
       onConfirm: (values) => {
         const newName = values.catName.trim();
         if (!newName) return;
         cat.name = newName;
+        cat.recurring = values.catRecurring;
         saveJSON(STORAGE_KEYS.categories, categories);
         render();
       }
@@ -1115,6 +1242,43 @@
     const inputs = {};
     if (fields) {
       fields.forEach(field => {
+        if (field.type === 'checkbox') {
+          const wrap = document.createElement('label');
+          wrap.style.display = 'flex';
+          wrap.style.alignItems = 'flex-start';
+          wrap.style.gap = '8px';
+          wrap.style.marginTop = '14px';
+          wrap.style.fontSize = '0.88rem';
+          wrap.style.color = 'var(--ink)';
+          wrap.style.cursor = 'pointer';
+
+          const input = document.createElement('input');
+          input.type = 'checkbox';
+          input.checked = !!field.value;
+          input.style.marginTop = '3px';
+          input.style.flexShrink = '0';
+
+          const textWrap = document.createElement('span');
+          const mainText = document.createElement('span');
+          mainText.textContent = field.label;
+          textWrap.appendChild(mainText);
+          if (field.hint) {
+            const hint = document.createElement('span');
+            hint.style.display = 'block';
+            hint.style.color = 'var(--ink-soft)';
+            hint.style.fontSize = '0.78rem';
+            hint.style.marginTop = '3px';
+            hint.textContent = field.hint;
+            textWrap.appendChild(hint);
+          }
+
+          wrap.appendChild(input);
+          wrap.appendChild(textWrap);
+          inputs[field.id] = input;
+          modal.appendChild(wrap);
+          return;
+        }
+
         const label = document.createElement('label');
         label.textContent = field.label;
         modal.appendChild(label);
@@ -1153,7 +1317,9 @@
     }
     confirmBtn.addEventListener('click', () => {
       const values = {};
-      Object.keys(inputs).forEach(k => values[k] = inputs[k].value);
+      Object.keys(inputs).forEach(k => {
+        values[k] = inputs[k].type === 'checkbox' ? inputs[k].checked : inputs[k].value;
+      });
       onConfirm(values);
       close();
     });
